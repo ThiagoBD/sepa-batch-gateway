@@ -86,7 +86,7 @@ payment_file:  RECEIVED ──► ACCEPTED
                         └──► REJECTED (group reason, or every instruction rejected)
 ```
 
-- Within the one transaction per file, `RECEIVED` is the state between insert and final update; after commit a file is always in a final state.
+- Within the one transaction per file, `RECEIVED` is the state between insert and final update; after commit a file is always in a final state. Until T-04.4 lands, the walking skeleton commits `RECEIVED` (a pre-release gap listed in plan.md Complexity Tracking).
 - A block is `RJCT` when it has its own reason or every instruction is rejected, `PART` when some are, `ACTC` when none are (RN-12).
 - An instruction is `ACCEPTED` or `REJECTED` with exactly one reason (RN-11). A reason found at the end of a block or file re-marks the affected instructions (RN-12).
 

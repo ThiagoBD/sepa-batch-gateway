@@ -37,19 +37,19 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 | Principle | How this plan complies | Status |
 | --- | --- | --- |
 | I. Money Is Exact | `numeric` columns, `BigDecimal` in the domain, ArchUnit rule against `double`/`float`, amounts as strings in JSON | PASS |
-| II. Never Pay Twice | `ux_payment_file_client_sha256` and `ux_payment_file_client_msgid_active`; `ConcurrentUploadIT` and `ConcurrentDuplicateMessageIdIT` | PASS |
-| III. All or Nothing per File | `ProcessPaymentFileService` runs in one `@Transactional(rollbackFor = Exception.class)`; `ProcessingRollbackIT` injects a failure mid-file | PASS |
+| II. Never Pay Twice | `ux_payment_file_client_sha256` and `ux_payment_file_client_msgid_active`; `ConcurrentUploadIT` and `ConcurrentDuplicateMessageIdIT`. Pre-release gap from T-01 to T-02 (Complexity Tracking) | PASS |
+| III. All or Nothing per File | `ProcessPaymentFileService` runs in one `@Transactional(rollbackFor = Exception.class)`; `ProcessingRollbackIT` injects a failure mid-file. Pre-release gap from T-01 to T-04 (Complexity Tracking) | PASS |
 | IV. Deterministic Validation | Fixed precedence (RN-11) in `BlockValidator` and `InstructionValidator`; business date from an injected `Clock` (Europe/Dublin); parameterized rule tests | PASS |
 | V. The Standard Is the Contract | XSD pass before any rule; every generated pain.002 validated against its XSD in tests | PASS |
 | VI. Every API Has OpenAPI | springdoc snapshot in `api/openapi.yaml` checked by `OpenApiContractTest`; `ProblemDetail` for every error | PASS |
 | VII. Every Behavior Change Has an Integration Test | `AbstractPostgresIT` base with Testcontainers; one `usXX_acY_*` test per criterion; config subtasks verified by CI | PASS |
-| VIII. Secure by Default | `SecureXmlFactories`, DOCTYPE prolog check, multipart limits, secrets from environment, client scoping with 404 | PASS |
+| VIII. Secure by Default | `SecureXmlFactories`, DOCTYPE prolog check, multipart limits, secrets from environment, client scoping with 404. Pre-release gap from T-01 to T-02 (Complexity Tracking) | PASS |
 | IX. Personal Data Stays Out of Logs | JSON logs (ECS format), `IbanMasker`, log-capture test on the payroll scenario | PASS |
 | X. The Domain Has No Framework | `validation.domain` in plain Java; `DomainArchitectureTest.domainHasNoFrameworkOrFloatingPoint` and `.modulesTalkOnlyThroughPorts` (each module reaches another only through its `port` package or `shared`) | PASS |
 | XI. LLMs Stay Off the Money Path | No LLM dependency; subtask modes and test ownership in `tasks.md` and `AGENTS.md` | PASS |
 | XII. Decisions Are Written Down | Eight ADRs listed in [research.md](./research.md), each written in the task that first depends on it (ADR-0006 in T-01, ADR-0008 in T-03); every dependency and tool is in the constitution's stack list | PASS |
 
-Post-design re-check: PASS. No violations to justify.
+Post-design re-check: PASS. Three pre-release gaps, allowed by the constitution's pre-release increments rule (1.2.0), are listed under Complexity Tracking.
 
 ## Project Structure
 
@@ -107,4 +107,12 @@ specs/001-payment-file-intake/
 
 ## Complexity Tracking
 
-No constitution violations. Two deliberate costs are recorded as ADRs instead: reading each file twice (XSD pass, then parse; ADR-0004) and holding one transaction per file (ADR-0005).
+Pre-release gaps allowed by the constitution's pre-release increments rule (1.2.0). The walking skeleton reaches `main` before the tasks that complete it; each gap closes before `v0.1.0`, proven by the test named.
+
+| Principle | Gap on `main` | Opened by | Closed by |
+| --- | --- | --- | --- |
+| II. Never Pay Twice | `POST /v1/payment-files` has no `(client_id, sha256)` constraint and no concurrency test | T-01 (T-01.3) | T-02: T-02.3 adds the index, T-02.4 proves it with `ConcurrentUploadIT` |
+| VIII. Secure by Default | Requests are not authenticated and files are not scoped by client | T-01 (T-01.3, T-01.6) | T-02: T-02.2 `ApiKeyAuthenticationIT`, T-02.3 `PaymentFileOwnershipIT` |
+| III. All or Nothing per File | A well-formed file is committed as `RECEIVED`, which is not a final status | T-01 (T-01.3) | T-04: T-04.4 `ProcessingRollbackIT` |
+
+Two deliberate costs are recorded as ADRs instead: reading each file twice (XSD pass, then parse; ADR-0004) and holding one transaction per file (ADR-0005).
