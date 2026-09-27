@@ -16,9 +16,9 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 
 **Storage**: PostgreSQL 18 (`uuidv7()`, partial unique index), schema managed by Flyway
 
-**Testing**: JUnit 5, AssertJ, Spring Boot Test with `RestTestClient`, Testcontainers 2 (`@ServiceConnection`), ArchUnit, JaCoCo; Python `unittest` for the scripts in `tools/`, run in CI
+**Testing**: JUnit 5, AssertJ, Spring Boot Test with `RestTestClient`, Testcontainers 2 (`@ServiceConnection`), ArchUnit, JaCoCo (at least 90% line coverage in `validation.domain`, enforced from T-03.4); Python `unittest` for the scripts in `tools/`, run in CI
 
-**Tooling**: Python 3 (standard library only) for the pain.001 generator, Bash for `tools/measure.sh`
+**Tooling**: Maven through the wrapper; GNU Make for `make demo`, `make test` and `make clean`; Python 3 (standard library only) for the pain.001 generator, Bash for `tools/measure.sh`
 
 **Target Platform**: Linux container; Docker Compose locally; GitHub Actions for CI
 
@@ -26,9 +26,9 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 
 **Performance Goals** (all are success criteria, checked by `tools/measure.sh` in T-08.2): p99 ≤ 5 s for 4,000 instructions (SC-002) and ≤ 12 s for 10,000 (SC-003), from upload to response; GET p99 ≤ 200 ms locally (SC-008); ≥ 1,000 instructions/s within a file (SC-009)
 
-**Constraints**: 20 MB per file; one transaction per file; parser walks 10,000 instructions within a 64 MB heap (SC-003); app runs in a container limited to 512 MB (SC-010); CI on the release tag ≤ 8 min (SC-011); no cloud cost
+**Constraints**: 20 MB (20 MiB) per `file` part; one transaction per file; parser walks 10,000 instructions within a 64 MB heap (SC-003); app runs in a container limited to 512 MB (SC-010); CI on the release tag ≤ 8 min (SC-011); no cloud cost
 
-**Scale/Scope**: Reference load of 20 files a day × 2,000 instructions (about 40,000 lines and 12 MB a day); single instance
+**Scale/Scope**: Reference load of 20 files a day × 2,000 instructions (about 40,000 lines and 35 MB a day, at about 870 bytes per instruction as in the contract example); single instance
 
 ## Constitution Check
 
@@ -42,12 +42,12 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 | IV. Deterministic Validation | Fixed precedence (RN-11) in `BlockValidator` and `InstructionValidator`; business date from an injected `Clock` (Europe/Dublin); parameterized rule tests | PASS |
 | V. The Standard Is the Contract | XSD pass before any rule; every generated pain.002 validated against its XSD in tests | PASS |
 | VI. Every API Has OpenAPI | springdoc snapshot in `api/openapi.yaml` checked by `OpenApiContractTest`; `ProblemDetail` for every error | PASS |
-| VII. Every Behavior Change Has an Integration Test | `AbstractPostgresIT` base with Testcontainers; one `usXX_acY_*` test per criterion; config subtasks verified by CI | PASS |
+| VII. Every Behavior Change Has an Integration Test | `AbstractPostgresIT` base with Testcontainers; at least one `usXX_acY_*` test per criterion; config subtasks verified by CI | PASS |
 | VIII. Secure by Default | `SecureXmlFactories`, DOCTYPE prolog check, multipart limits, secrets from environment, client scoping with 404. Pre-release gap from T-01 to T-02 (Complexity Tracking) | PASS |
 | IX. Personal Data Stays Out of Logs | JSON logs (ECS format), `IbanMasker`, log-capture test on the payroll scenario | PASS |
 | X. The Domain Has No Framework | `validation.domain` in plain Java; `DomainArchitectureTest.domainHasNoFrameworkOrFloatingPoint` and `.modulesTalkOnlyThroughPorts` (each module reaches another only through its `port` package or `shared`) | PASS |
 | XI. LLMs Stay Off the Money Path | No LLM dependency; subtask modes and test ownership in `tasks.md` and `AGENTS.md` | PASS |
-| XII. Decisions Are Written Down | Eight ADRs listed in [research.md](./research.md), each written in the task that first depends on it (ADR-0006 in T-01, ADR-0008 in T-03); every dependency and tool is in the constitution's stack list | PASS |
+| XII. Decisions Are Written Down | Eight ADRs listed in [research.md](./research.md), each written in the task that first depends on it and merged in that task's pull request (ADR-0002 and ADR-0006 in T-01; ADR-0004, ADR-0005 and ADR-0008 in T-03); every dependency and tool is in the constitution's stack list (1.2.0) | PASS |
 
 Post-design re-check: PASS. Four pre-release gaps, allowed by the constitution's pre-release increments rule (1.2.0), are listed under Complexity Tracking.
 
@@ -99,7 +99,7 @@ specs/001-payment-file-intake/
     └── test/java/com/quaysidepay/sepagateway/
         ├── ...Test                      # unit
         ├── ...IT                        # integration (Testcontainers)
-        ├── ...AcceptanceIT              # one test per acceptance criterion
+        ├── ...AcceptanceIT              # at least one test per acceptance criterion
         └── architecture/                # ArchUnit
 ```
 

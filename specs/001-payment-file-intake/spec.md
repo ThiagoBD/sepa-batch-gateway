@@ -93,7 +93,7 @@ As a corporate client, I want my API key to reach only my own files, so that my 
 
 1. **US-07.AC1** — **Given** client B's key, **When** B requests a file owned by client A (summary, report or instructions), **Then** B receives 404 and an `access.denied` event is logged without payload data.
 2. **US-07.AC2** — **Given** clients A and B upload identical bytes, **When** both uploads finish, **Then** each has its own file id.
-3. **US-07.AC3** — **Given** any file is processed, **When** logs are written, **Then** no full IBAN, person name, file content or API key appears in them.
+3. **US-07.AC3** — **Given** the payroll scenario, a schema-invalid file whose first violation is inside an IBAN, a file with an external entity and a request with an invalid API key, **When** they are processed, **Then** no full IBAN, person name, file content or API key appears in the logs.
 
 ---
 
@@ -107,7 +107,7 @@ As a corporate ERP system, I want to download a pain.002.001.10 status report fo
 
 **Acceptance Scenarios**:
 
-1. **US-05.AC1** — **Given** a PARTIALLY_ACCEPTED file, **When** I GET its status report, **Then** I receive an XSD-valid pain.002 with GrpSts PART, one TxInfAndSts (TxSts RJCT plus reason) per rejected instruction, and NbOfTxsPerSts counts.
+1. **US-05.AC1** — **Given** a PARTIALLY_ACCEPTED file, **When** I GET its status report, **Then** I receive an XSD-valid pain.002 with GrpSts PART, one OrgnlPmtInfAndSts per PART or RJCT block, one TxInfAndSts (TxSts RJCT plus reason) per instruction rejected for its own reason, and NbOfTxsPerSts counts.
 2. **US-05.AC2** — **Given** a fully accepted file, **When** I GET its report, **Then** GrpSts is ACTC and no transaction details are listed.
 3. **US-05.AC3** — **Given** a file rejected at group level (FF01, AM16, AM18 or DU01), **When** I GET its report, **Then** GrpSts is RJCT with that reason and no transaction details.
 
@@ -141,7 +141,7 @@ As a payments operations analyst, I want to see a file's summary and its rejecte
 | Empty upload or missing `file` part | 400 `invalid-request`, nothing stored | RN-03 |
 | Request that is not multipart | 415 `unsupported-media-type`, nothing stored | RN-03 |
 | `sha256` field in upper-case hex that matches the content | Accepted: the comparison ignores case | RN-03 |
-| 20 MB + 1 byte | 413, nothing stored | RN-03 |
+| `file` part of 20,971,521 bytes (20 MB + 1 byte) | 413, nothing stored | RN-03 |
 | DOCTYPE with an external entity (XXE) | FF01; the entity is never resolved | RN-03 |
 | Billion laughs | FF01 in under 2 s, health UP | RN-03 |
 | Namespace of another version (pain.001.001.03) | FF01 | RN-03 |
@@ -150,10 +150,15 @@ As a payments operations analyst, I want to see a file's summary and its rejecte
 | Creditor name made only of spaces | BE22 (the name is checked after trimming). An empty `<Nm/>` fails the XSD, so the file is FF01 | RN-10, RN-03 |
 | NbOfTxs and CtrlSum both wrong | AM18, because the count comes first | RN-04, RN-11 |
 | CtrlSum absent | Only the count is checked | RN-04 |
+| NbOfTxs with 15 digits (the XSD allows up to 15) | AM18: the count is compared as a number, never an overflow error | RN-04 |
 | ReqdExctnDt on 26 December or in the past | Block RJCT with DT01; other blocks continue | RN-05 |
+| ReqdExctnDt given as a date and time (`DtTm`) instead of a date (`Dt`) | Block RJCT with DT01 | RN-05 |
+| Debtor account given as `Othr`, without an IBAN | Block RJCT with AC02 | RN-06 |
+| Creditor IBAN of a country outside SEPA, with a valid check digit | AC03 | RN-07 |
 | Amount 1500.000 (same value, 3 decimals) | AM12: the rule looks at the written scale. With 6 or more decimals the XSD fails first and the file is FF01 | RN-09 |
+| Amount given as `EqvtAmt` instead of `InstdAmt` | AM12: the instructed amount is missing | RN-09 |
 | BIC absent | Accepted | RN-08 |
-| Every instruction rejected | REJECTED, GrpSts RJCT without a group reason, all listed in TxInfAndSts | RN-12, RN-13 |
+| Every instruction rejected | REJECTED, GrpSts RJCT without a group reason. Each instruction rejected for its own reason is listed in TxInfAndSts; a block rejected as a whole (DT01, AC02, AM17 or AM18) appears only in OrgnlPmtInfAndSts | RN-12, RN-13 |
 | Database fails mid-file | Rollback, generic 500, zero rows; a resend processes from scratch | RN-01 |
 | Inactive key | 401 | RN-14 |
 | `size=500` on the instruction query | 400 `invalid-parameter` (maximum 200) | — |
@@ -169,28 +174,30 @@ Business rules keep their plan ids (RN-xx). Reason codes come from the ISO 20022
   - Example: A sends `payroll.xml` → 201, id F1. A sends `payroll-copy.xml` with the same bytes → 200, id F1, `Idempotent-Replayed: true`. B sends the same bytes → 201, id F2.
 - **RN-02**: System MUST keep MsgId unique per client among files that are not REJECTED. A reused MsgId → REJECTED DU01, with no instructions.
   - Example: F1 (MsgId QP-1002) ACCEPTED; F2 with other bytes and MsgId QP-1002 → REJECTED DU01. If F1 had been REJECTED FF01, F2 would be processed normally.
-- **RN-03**: System MUST accept only files up to 20 MB that are well formed, have no DOCTYPE and are valid against the pain.001.001.09 XSD. Above the limit → 413 with no resource; any other failure → REJECTED FF01. A request without a non-empty `file` part → 400 `invalid-request`, and a request that is not multipart → 415 `unsupported-media-type`, both with nothing stored. When the optional `sha256` field is sent, it MUST equal the SHA-256 of the bytes (hex, compared without regard to case); otherwise 422 `checksum-mismatch` and nothing is stored.
-  - Example: 25 MB → 413, nothing stored. `<!DOCTYPE ...>` → FF01. IBAN written with spaces → the XSD fails → FF01 for the whole file. `sha256` of another file → 422.
-- **RN-04**: System MUST check control totals: NbOfTxs and CtrlSum (when present) of the group header and of each PmtInf match the content. Group mismatch → AM18 (count) or AM16 (sum); block mismatch → AM18 or AM17.
-  - Example: NbOfTxs 4000 with 3,999 transactions → REJECTED AM18. CtrlSum 1000.00 with a sum of 999.99 → REJECTED AM16. CtrlSum absent → only the count is checked.
-- **RN-05**: System MUST reject a block whose ReqdExctnDt is before the business date (today in Europe/Dublin, read from an injected clock) or is not a TARGET business day (closed on Saturdays, Sundays, 1 January, Good Friday, Easter Monday, 1 May, 25 and 26 December), with DT01.
-  - Example: today 2027-03-24: 2027-03-26 (Good Friday) → DT01; 2027-03-30 → ok; 2027-03-23 → DT01.
-- **RN-06**: System MUST reject a block whose debtor IBAN (DbtrAcct) fails the RN-07 check, with AC02.
-  - Example: DbtrAcct IE29AIBK93115212345679 → AC02 on all 500 instructions of the block.
-- **RN-07**: System MUST require a creditor IBAN that is present, is written in upper case, has a known country, has that country's length and passes mod-97 = 1. Otherwise AC03. The gateway never normalises an IBAN.
-  - Example: IE29AIBK93115212345678 → ok; IE29AIBK93115212345679 → AC03; 21 characters → AC03; IE29aibk93115212345678 → AC03.
-- **RN-08**: System MUST accept a missing creditor agent BIC; when present, its country (positions 5 and 6) MUST be an ISO 3166-1 code. Otherwise RC01.
-  - Example: AIBKIE2D → ok; AIBKXX2D → RC01; absent → ok.
-- **RN-09**: System MUST require currency EUR (AM03), at most 2 written decimals (AM12), an amount greater than zero (AM01) and at most 999,999,999.99 (AM02). Amounts are compared with `compareTo`.
-  - Example: 1500.00 EUR → ok; 1500.001 → AM12; 1500.000 → AM12; 0.00 → AM01; 1000000000.00 → AM02; 100.00 USD → AM03.
+- **RN-03**: System MUST accept only files whose `file` part is at most 20 MB (20 MiB = 20,971,520 bytes) and that are well formed, have no DOCTYPE and are valid against the pain.001.001.09 XSD. Above the limit → 413 with no resource; any other failure → REJECTED FF01. The FF01 detail gives the line, column and element path of the first violation, never the offending value. A request without a non-empty `file` part → 400 `invalid-request`, and a request that is not multipart → 415 `unsupported-media-type`, both with nothing stored. When the optional `sha256` field is sent, it MUST equal the SHA-256 of the bytes (hex, compared without regard to case); otherwise 422 `checksum-mismatch` and nothing is stored.
+  - Example: 25 MB → 413, nothing stored. `<!DOCTYPE ...>` → FF01. IBAN written with spaces → the XSD fails → FF01 for the whole file, with a detail like "line 42, column 31, CdtrAcct/Id/IBAN: pattern not matched" that does not repeat the IBAN. `sha256` of another file → 422.
+- **RN-04**: System MUST check control totals: NbOfTxs and CtrlSum (when present) of the group header and of each PmtInf match the content. Group mismatch → AM18 (count) or AM16 (sum); block mismatch → AM18 or AM17. NbOfTxs is compared as a number of any size the XSD allows (up to 15 digits).
+  - Example: NbOfTxs 4000 with 3,999 transactions → REJECTED AM18. NbOfTxs 999999999999999 with 10 transactions → REJECTED AM18. CtrlSum 1000.00 with a sum of 999.99 → REJECTED AM16. CtrlSum absent → only the count is checked.
+- **RN-05**: System MUST reject a block whose ReqdExctnDt is before the business date (today in Europe/Dublin, read from an injected clock) or is not a TARGET business day (closed on Saturdays, Sundays, 1 January, Good Friday, Easter Monday, 1 May, 25 and 26 December), with DT01. A ReqdExctnDt given as a date and time (`DtTm`) instead of a date (`Dt`) is also DT01.
+  - Example: today 2027-03-24: 2027-03-26 (Good Friday) → DT01; 2027-03-30 → ok; 2027-03-23 → DT01; `<DtTm>2027-03-30T10:00:00</DtTm>` → DT01.
+- **RN-06**: System MUST reject a block whose debtor IBAN (DbtrAcct) fails the RN-07 check, with AC02. A debtor account given as `Othr`, without an IBAN, fails the check.
+  - Example: DbtrAcct IE29AIBK93115212345679 → AC02 on all 500 instructions of the block. `<DbtrAcct><Id><Othr>…</Othr></Id></DbtrAcct>` → AC02.
+- **RN-07**: System MUST require a creditor IBAN that is present, is written in upper case, has the country code of a SEPA scheme country (EPC list of SEPA scheme countries, EPC409-09), has that country's length in the SWIFT IBAN Registry and passes mod-97 = 1. Otherwise AC03. The gateway never normalises an IBAN.
+  - Example: IE29AIBK93115212345678 → ok; IE29AIBK93115212345679 → AC03; 21 characters → AC03; IE29aibk93115212345678 → AC03; BR9700360305000010009795493P1 (valid check digits, Brazil is not in SEPA) → AC03.
+- **RN-08**: System MUST accept a missing creditor agent BIC; when present, its country (positions 5 and 6) MUST be an officially assigned ISO 3166-1 alpha-2 code; user-assigned codes such as XK are not. Otherwise RC01.
+  - Example: AIBKIE2D → ok; AIBKXX2D → RC01; AIBKXK2D → RC01; absent → ok.
+- **RN-09**: System MUST require an instructed amount (`InstdAmt`) in EUR (AM03), present and with at most 2 written decimals (AM12), greater than zero (AM01) and at most 999,999,999.99 (AM02). An amount given as `EqvtAmt` leaves the instruction without an instructed amount or currency, so AM03 does not apply and the result is AM12. Amounts are compared with `compareTo`.
+  - Example: 1500.00 EUR → ok; 1500.001 → AM12; 1500.000 → AM12; 0.00 → AM01; 1000000000.00 → AM02; 100.00 USD → AM03; `EqvtAmt` 100.00 → AM12.
 - **RN-10**: System MUST require a creditor name that is not blank after trimming. Otherwise BE22.
   - Example: `<Cdtr>` without `<Nm>` → BE22; `<Nm>   </Nm>` → BE22.
 - **RN-11**: System MUST record exactly one reason per item, by precedence. Group: FF01 → DU01 → AM18 → AM16. Block: AM18 → AM17 → DT01 → AC02 (instructions inherit the block reason). Instruction: AM03 → AM12 → AM01 → AM02 → AC03 → RC01 → BE22.
   - Example: 0.001 USD to an invalid IBAN with no creditor name → only AM03.
 - **RN-12**: System MUST aggregate statuses. A block is RJCT when it has its own reason or all its instructions are rejected, PART when some are, ACTC when none are. A file is REJECTED when it has a group reason or all instructions are rejected, PARTIALLY_ACCEPTED when some are, ACCEPTED when none are. A reason found only at the end re-marks the affected instructions with that code: AM18 or AM16 on the whole file, AM18 or AM17 on the block's instructions.
   - Example: payroll of 4,000 with 12 AC03 → PARTIALLY_ACCEPTED. 10 instructions, all AC03 → REJECTED without a group reason.
-- **RN-13**: System MUST build the pain.002 as follows: GrpSts ACTC, PART or RJCT; StsRsnInf at group level only for a group reason; OrgnlPmtInfAndSts only for PART or RJCT blocks; TxInfAndSts only for instructions rejected for their own reason; NbOfTxsPerSts with the ACTC and RJCT counts.
-  - Example: payroll 4,000/12 → GrpSts PART, 12 TxInfAndSts RJCT AC03, NbOfTxsPerSts ACTC 3988 and RJCT 12. Unreadable FF01 file → GrpSts RJCT FF01, OrgnlMsgId NOTPROVIDED.
+- **RN-13**: System MUST build the pain.002 as follows: GrpSts ACTC, PART or RJCT; StsRsnInf at group level only for a group reason; OrgnlPmtInfAndSts only for PART or RJCT blocks, and never when the file has a group reason; TxInfAndSts only for instructions rejected for their own reason; NbOfTxsPerSts with the ACTC and RJCT counts of the instructions read.
+  - Example: payroll 4,000/12 → GrpSts PART, 12 TxInfAndSts RJCT AC03, NbOfTxsPerSts ACTC 3988 and RJCT 12.
+  - Example: block B1 with 997 accepted and 3 AC03, block B2 rejected with DT01 (500 instructions) → GrpSts PART; OrgnlPmtInfAndSts B1 PART with 3 TxInfAndSts AC03, and B2 RJCT with StsRsnInf DT01 and no TxInfAndSts; NbOfTxsPerSts ACTC 997 and RJCT 503. A block re-marked with AM17 or AM18 is reported the same way as B2.
+  - Example, group reasons (each with GrpSts RJCT and StsRsnInf carrying the reason, and never OrgnlPmtInfAndSts or TxInfAndSts): FF01 → OrgnlMsgId NOTPROVIDED, because the second pass never runs, and no NbOfTxsPerSts. DU01 → OrgnlMsgId and OrgnlNbOfTxs as declared, and no NbOfTxsPerSts, because no instruction is stored. AM18 or AM16 → OrgnlMsgId and OrgnlNbOfTxs as declared, and NbOfTxsPerSts RJCT with the number of instructions read.
 - **RN-14**: System MUST scope every read and write to the authenticated client. Another client's resource → 404, never 403.
   - Example: B GETs A's file F1 → 404 and an `access.denied` log event.
 
@@ -204,12 +211,12 @@ Business rules keep their plan ids (RN-xx). Reason codes come from the ISO 20022
 | AM16 | Group | Control sum does not match |
 | AM17 | Block | Block control sum does not match |
 | DT01 | Block | Invalid requested execution date |
-| AC02 | Block | Invalid debtor account |
+| AC02 | Block | Invalid debtor account number |
 | AM03 | Instruction | Currency not allowed |
 | AM12 | Instruction | Invalid amount (decimals) |
 | AM01 | Instruction | Zero amount |
 | AM02 | Instruction | Amount above the allowed maximum |
-| AC03 | Instruction | Invalid creditor account |
+| AC03 | Instruction | Invalid creditor account number |
 | RC01 | Instruction | Invalid BIC |
 | BE22 | Instruction | Creditor name missing |
 
@@ -225,14 +232,16 @@ Business rules keep their plan ids (RN-xx). Reason codes come from the ISO 20022
 
 ### Measurable Outcomes
 
+Measurement protocol for SC-002, SC-003 and SC-008 to SC-010: `tools/measure.sh` runs locally against the Compose `app` service limited to 512 MB, with 3 warm-ups + 20 runs per measure and the hardware recorded. With 20 runs, p99 is the slowest run and p50 the mean of the 10th and 11th.
+
 - **SC-001**: All 23 acceptance criteria (US-01 to US-07) pass as automated tests in CI.
-- **SC-002**: The 4,000-instruction payroll with 12 invalid IBANs is processed with p99 ≤ 5 s from upload to response, measured locally (3 warm-ups + 20 runs, hardware recorded).
-- **SC-003**: A 10,000-instruction file is processed with p99 ≤ 12 s, and the parser walks it with a 64 MB heap.
+- **SC-002**: The 4,000-instruction payroll with 12 invalid IBANs is processed with p99 ≤ 5 s from upload to response.
+- **SC-003**: A 10,000-instruction file is processed with p99 ≤ 12 s from upload to response, and the parser alone walks it with a 64 MB heap (`StreamingMemoryTest`).
 - **SC-004**: Under concurrency, identical uploads never create a second file and a shared MsgId never yields two non-rejected files.
 - **SC-005**: Every pain.002 produced in tests is valid against the pain.002.001.10 XSD.
-- **SC-006**: No full IBAN, person name, file content or API key appears in logs while processing the payroll scenario.
-- **SC-007**: `make demo` runs the payroll scenario on a clean machine in under 5 minutes.
-- **SC-008**: `GET /v1/payment-files/{id}` and one page of `/instructions` answer with p99 ≤ 200 ms, measured locally (3 warm-ups + 20 runs).
+- **SC-006**: No full IBAN, person name, file content or API key appears in logs while processing the four scenarios of US-07.AC3.
+- **SC-007**: `make demo` runs the payroll scenario in under 5 minutes on a fresh clone after `make clean`, on a machine with JDK 25 and Docker installed (the Maven repository and base images may already be cached).
+- **SC-008**: `GET /v1/payment-files/{id}` and one page of `/instructions` answer with p99 ≤ 200 ms.
 - **SC-009**: A file is processed at ≥ 1,000 instructions per second: 10,000 instructions divided by the p50 upload time of the 10,000-instruction file.
 - **SC-010**: The application processes the payroll and the 10,000-instruction file inside a container limited to 512 MB of memory, with no restart and no out-of-memory error.
 - **SC-011**: The CI pipeline on the `v0.1.0` tag finishes green in at most 8 minutes.
@@ -248,7 +257,7 @@ Business rules keep their plan ids (RN-xx). Reason codes come from the ISO 20022
 
 ## Traceability
 
-Every criterion has one acceptance test with the same identifier in its name. The Task column mirrors the Covers lines in `tasks.md`, which are the source of truth. The PR column is filled in when the criterion's test is merged.
+Every criterion has at least one acceptance test with the same identifier in its name. The Task column mirrors the Covers lines in `tasks.md`, which are the source of truth. The PR column is filled in when the criterion's test is merged.
 
 | Criterion | Rules | Task | Acceptance test | PR |
 | --- | --- | --- | --- | --- |

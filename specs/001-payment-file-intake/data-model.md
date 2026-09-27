@@ -23,9 +23,9 @@ Four tables in PostgreSQL 18. Idempotency lives in two constraints, not in code.
 | size_bytes | bigint | NOT NULL, CHECK > 0 |
 | status | varchar(20) | NOT NULL, CHECK IN (RECEIVED, ACCEPTED, PARTIALLY_ACCEPTED, REJECTED) |
 | group_reason_code | varchar(4) | NULL; allowed only when status is REJECTED |
-| rejection_detail | varchar(500) | NULL; first XSD violation with line and column |
+| rejection_detail | varchar(500) | NULL; first XSD violation: line, column and element path, never the offending value |
 | message_id | varchar(35) | NULL; GrpHdr/MsgId |
-| declared_tx_count | integer | NULL; GrpHdr/NbOfTxs |
+| declared_tx_count | bigint | NULL; GrpHdr/NbOfTxs (up to 15 digits in the XSD) |
 | declared_ctrl_sum | numeric | NULL; no fixed precision, keeps exactly what was sent |
 | accepted_count, rejected_count | integer | NOT NULL DEFAULT 0, CHECK ≥ 0 |
 | accepted_amount | numeric(18,2) | NOT NULL DEFAULT 0 |
@@ -48,10 +48,10 @@ Constraints and indexes:
 | file_id | uuid | NOT NULL, FK `payment_file` ON DELETE CASCADE |
 | sequence_no | integer | NOT NULL, UNIQUE (file_id, sequence_no) |
 | pmt_inf_id | varchar(35) | NOT NULL |
-| requested_execution_date | date | NOT NULL |
+| requested_execution_date | date | NULL; NULL when ReqdExctnDt comes as `DtTm`, and the block is then RJCT DT01 |
 | debtor_name | varchar(140) | NULL |
-| debtor_iban | varchar(34) | NOT NULL |
-| declared_tx_count | integer | NOT NULL |
+| debtor_iban | varchar(34) | NULL; NULL when DbtrAcct has no IBAN (`Othr`), and the block is then RJCT AC02 |
+| declared_tx_count | bigint | NOT NULL; PmtInf/NbOfTxs (up to 15 digits in the XSD) |
 | declared_ctrl_sum | numeric | NULL |
 | status | varchar(4) | NOT NULL, CHECK IN (ACTC, PART, RJCT) |
 | reason_code | varchar(4) | NULL; DT01, AC02, AM17 or AM18 |

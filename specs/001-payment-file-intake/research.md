@@ -1,13 +1,14 @@
 # Research: Payment File Intake (MVP)
 
-Each decision below becomes an ADR in `docs/adr/` (MADR format), written in the task that first depends on it, so it is merged before or with the code that uses it (constitution XII). This file keeps the short version and the alternatives that were rejected.
+Each decision below becomes an ADR in `docs/adr/` (MADR format), written in the task that first depends on it. One task is one pull request (constitution 1.2.0), so the ADR is merged with the code that uses it (constitution XII). This file keeps the short version and the alternatives that were rejected.
 
 | ADR | Written in | Revised in |
 | --- | --- | --- |
 | 0001 Record decisions, 0002 Modular monolith, 0006 Spring JDBC | T-01.7 | 0006 in T-04.6 (batch measurement) |
 | 0003 File idempotency, 0007 API key | T-02.5 | 0003 in T-07.3 (MsgId race) |
-| 0004 StAX + JAXB, 0008 Invalid file answers 201 REJECTED | T-03.6 | 0008 in T-06.5 (report content) |
-| 0005 One transaction per file | T-04.6 | — |
+| 0004 StAX + JAXB, 0005 One transaction per file, 0008 Invalid file answers 201 REJECTED | T-03.6 | 0005 in T-04.6 (rollback proof); 0008 in T-06.5 (report content) |
+
+ADR-0005 lands in T-03 because T-03.3 is the first subtask that processes file content inside the upload request.
 
 ## Decisions
 
