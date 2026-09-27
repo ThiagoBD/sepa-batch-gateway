@@ -30,6 +30,7 @@ An invalid file is not a 4xx: it answers 201 with status REJECTED and a pain.002
   "sizeBytes": 3481220,
   "status": "PARTIALLY_ACCEPTED",
   "groupReasonCode": null,
+  "rejectionDetail": null,
   "messageId": "LIFFEY-PAYROLL-20261002",
   "declaredNumberOfTransactions": 4000,
   "declaredControlSum": "12345678.90",
@@ -46,7 +47,7 @@ An invalid file is not a 4xx: it answers 201 with status REJECTED and a pain.002
 }
 ```
 
-Money is always a decimal string, so no JavaScript client rounds it.
+Money is always a decimal string, so no JavaScript client rounds it. `rejectionDetail` is filled only for FF01: the line, column and element path of the first XSD violation, never the offending value (RN-03).
 
 ## Instruction page
 
@@ -87,7 +88,7 @@ Every error is `application/problem+json` with `type` = `https://api.quayside.ex
 | `unauthorized` | 401 | Missing, unknown or inactive API key |
 | `payment-file-not-found` | 404 | Unknown id, or a file of another client |
 | `report-not-ready` | 409 | File still RECEIVED (reserved for asynchronous processing in V2) |
-| `file-too-large` | 413 | Upload above 20 MB |
+| `file-too-large` | 413 | `file` part above 20 MB (20,971,520 bytes) |
 | `unsupported-media-type` | 415 | Request is not multipart |
 | `checksum-mismatch` | 422 | `sha256` field differs from the content |
 | `internal-error` | 500 | Any unexpected failure; the whole file is rolled back |
