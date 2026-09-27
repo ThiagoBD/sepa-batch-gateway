@@ -42,7 +42,7 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 | IV. Deterministic Validation | Fixed precedence (RN-11) in `BlockValidator` and `InstructionValidator`; business date from an injected `Clock` (Europe/Dublin); parameterized rule tests | PASS |
 | V. The Standard Is the Contract | XSD pass before any rule; every generated pain.002 validated against its XSD in tests | PASS |
 | VI. Every API Has OpenAPI | springdoc snapshot in `api/openapi.yaml` checked by `OpenApiContractTest`; `ProblemDetail` for every error | PASS |
-| VII. Every Behavior Change Has an Integration Test | `AbstractPostgresIT` base with Testcontainers; one `usXX_acY_*` test per criterion; config subtasks verified by CI | PASS |
+| VII. Every Behavior Change Has an Integration Test | `AbstractPostgresIT` base with Testcontainers; at least one `usXX_acY_*` test per criterion; config subtasks verified by CI | PASS |
 | VIII. Secure by Default | `SecureXmlFactories`, DOCTYPE prolog check, multipart limits, secrets from environment, client scoping with 404. Pre-release gap from T-01 to T-02 (Complexity Tracking) | PASS |
 | IX. Personal Data Stays Out of Logs | JSON logs (ECS format), `IbanMasker`, log-capture test on the payroll scenario | PASS |
 | X. The Domain Has No Framework | `validation.domain` in plain Java; `DomainArchitectureTest.domainHasNoFrameworkOrFloatingPoint` and `.modulesTalkOnlyThroughPorts` (each module reaches another only through its `port` package or `shared`) | PASS |
@@ -99,7 +99,7 @@ specs/001-payment-file-intake/
     └── test/java/com/quaysidepay/sepagateway/
         ├── ...Test                      # unit
         ├── ...IT                        # integration (Testcontainers)
-        ├── ...AcceptanceIT              # one test per acceptance criterion
+        ├── ...AcceptanceIT              # at least one test per acceptance criterion
         └── architecture/                # ArchUnit
 ```
 
