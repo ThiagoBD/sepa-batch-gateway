@@ -19,7 +19,7 @@ SEPA Batch Gateway receives ISO 20022 pain.001.001.09 payment files, validates e
 
 ## Stack (pinned)
 
-Java 25 · Spring Boot 4.1 · Spring Security 7 · PostgreSQL 18 · Flyway · Jakarta XML Binding 4 + StAX · springdoc-openapi 3.x · Testcontainers 2 · JUnit 5 · AssertJ · ArchUnit · JaCoCo · Docker Compose · GitHub Actions. Scripts in `tools/`: Python 3 (standard library only) and Bash.
+Java 25 · Spring Boot 4.1 · Spring Security 7 · PostgreSQL 18 · Flyway · Jakarta XML Binding 4 + StAX · springdoc-openapi 3.x · Maven (wrapper) · GNU Make · Testcontainers 2 · JUnit 5 · AssertJ · ArchUnit · JaCoCo · Docker Compose · GitHub Actions · Dependabot · GitHub Pages (API docs only) · Spec Kit. Scripts in `tools/`: Python 3 (standard library only) and Bash. Command-line tools used only in manual checks (`curl`, `openssl`, `xmllint`, `psql`) are not part of the stack.
 
 Spring Boot 4 renamed things; code written for Boot 3 or Testcontainers 1.x does not compile here:
 
@@ -55,6 +55,7 @@ This list matches the constitution. Adding a dependency or technology not listed
 - Never edit an applied migration; add a new `V{n}__*.sql`.
 - Test names for acceptance criteria follow `usXX_acY_*` and live in `*AcceptanceIT` classes.
 - Commits follow Conventional Commits (`feat`, `fix`, `test`, `docs`, `build`, `ci`, `chore`, `refactor`).
+- One task is one pull request: each subtask is one commit on the task's branch, and the PR merges when the task's Definition of Done holds.
 
 ## AI policy
 

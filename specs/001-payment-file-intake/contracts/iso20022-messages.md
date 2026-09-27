@@ -14,8 +14,8 @@ Profile: EPC SEPA Credit Transfer, Customer-to-PSP Implementation Guidelines 202
 | Level | Elements | Used for |
 | --- | --- | --- |
 | Group header (`GrpHdr`) | `MsgId`, `NbOfTxs`, `CtrlSum` | Duplicate MsgId (RN-02), group totals (RN-04) |
-| Payment block (`PmtInf`) | `PmtInfId`, `NbOfTxs`, `CtrlSum`, `ReqdExctnDt`, `Dbtr/Nm`, `DbtrAcct/Id/IBAN` | Block totals (RN-04), execution date (RN-05), debtor account (RN-06) |
-| Transaction (`CdtTrfTxInf`) | `PmtId/InstrId`, `PmtId/EndToEndId`, `Amt/InstdAmt` and `Ccy`, `CdtrAgt/FinInstnId/BICFI`, `Cdtr/Nm`, `CdtrAcct/Id/IBAN` | Amount and currency (RN-09), BIC (RN-08), creditor name (RN-10), creditor IBAN (RN-07) |
+| Payment block (`PmtInf`) | `PmtInfId`, `NbOfTxs`, `CtrlSum`, `ReqdExctnDt/Dt`, `Dbtr/Nm`, `DbtrAcct/Id/IBAN` | Block totals (RN-04), execution date (RN-05; a `ReqdExctnDt/DtTm` is DT01), debtor account (RN-06; a `DbtrAcct/Id/Othr` is AC02) |
+| Transaction (`CdtTrfTxInf`) | `PmtId/InstrId`, `PmtId/EndToEndId`, `Amt/InstdAmt` and `Ccy`, `CdtrAgt/FinInstnId/BICFI`, `Cdtr/Nm`, `CdtrAcct/Id/IBAN` | Amount and currency (RN-09; an `Amt/EqvtAmt` is AM12), BIC (RN-08), creditor name (RN-10), creditor IBAN (RN-07) |
 
 Reading: the whole file is validated against the XSD first; then a StAX cursor unmarshals only `GrpHdr`, the header children of each `PmtInf` and each `CdtTrfTxInf` on its own. The whole `PmtInf` is never unmarshalled.
 
@@ -24,8 +24,8 @@ Postal addresses (`PstlAdr`) are neither validated nor stored in the MVP; the st
 ## pain.002.001.10: what the gateway writes
 
 - `GrpHdr`: new `MsgId` (`STS-` plus a short id), `CreDtTm`.
-- `OrgnlGrpInfAndSts`: `OrgnlMsgId` (`NOTPROVIDED` when the file could not be read), `OrgnlMsgNmId` = `pain.001.001.09`, `OrgnlNbOfTxs`, `OrgnlCtrlSum`, `GrpSts`, `StsRsnInf` only for a group reason, `NbOfTxsPerSts` with the ACTC and RJCT counts.
-- `OrgnlPmtInfAndSts`: only for PART or RJCT blocks.
+- `OrgnlGrpInfAndSts`: `OrgnlMsgId` (`NOTPROVIDED` for every FF01 file, because the second pass never runs), `OrgnlMsgNmId` = `pain.001.001.09`, `OrgnlNbOfTxs`, `OrgnlCtrlSum`, `GrpSts`, `StsRsnInf` only for a group reason, `NbOfTxsPerSts` with the ACTC and RJCT counts of the instructions read (none for FF01 and DU01, where no instruction is stored).
+- `OrgnlPmtInfAndSts`: only for PART or RJCT blocks, and never when the file has a group reason. A block rejected as a whole (DT01, AC02, AM17, AM18) carries its reason here and lists no `TxInfAndSts`.
 - `TxInfAndSts`: only for transactions rejected for their own reason, with `OrgnlInstrId`, `OrgnlEndToEndId`, `TxSts` RJCT and `StsRsnInf/Rsn/Cd`.
 
 Every report produced in tests is validated against the pain.002.001.10 XSD before any other assertion.
