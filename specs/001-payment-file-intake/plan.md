@@ -37,7 +37,7 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 | Principle | How this plan complies | Status |
 | --- | --- | --- |
 | I. Money Is Exact | `numeric` columns, `BigDecimal` in the domain, ArchUnit rule against `double`/`float`, amounts as strings in JSON | PASS |
-| II. Never Pay Twice | `ux_payment_file_client_sha256` and `ux_payment_file_client_msgid_active`; `ConcurrentUploadIT` and `ConcurrentDuplicateMessageIdIT`. Pre-release gap from T-01 to T-02 (Complexity Tracking) | PASS |
+| II. Never Pay Twice | `ux_payment_file_client_sha256` and `ux_payment_file_client_msgid_active`; `ConcurrentUploadIT` and `ConcurrentDuplicateMessageIdIT`. Pre-release gaps from T-01 to T-02 (content hash) and from T-04 to T-07 (MsgId), in Complexity Tracking | PASS |
 | III. All or Nothing per File | `ProcessPaymentFileService` runs in one `@Transactional(rollbackFor = Exception.class)`; `ProcessingRollbackIT` injects a failure mid-file. Pre-release gap from T-01 to T-04 (Complexity Tracking) | PASS |
 | IV. Deterministic Validation | Fixed precedence (RN-11) in `BlockValidator` and `InstructionValidator`; business date from an injected `Clock` (Europe/Dublin); parameterized rule tests | PASS |
 | V. The Standard Is the Contract | XSD pass before any rule; every generated pain.002 validated against its XSD in tests | PASS |
@@ -49,7 +49,7 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 | XI. LLMs Stay Off the Money Path | No LLM dependency; subtask modes and test ownership in `tasks.md` and `AGENTS.md` | PASS |
 | XII. Decisions Are Written Down | Eight ADRs listed in [research.md](./research.md), each written in the task that first depends on it (ADR-0006 in T-01, ADR-0008 in T-03); every dependency and tool is in the constitution's stack list | PASS |
 
-Post-design re-check: PASS. Three pre-release gaps, allowed by the constitution's pre-release increments rule (1.2.0), are listed under Complexity Tracking.
+Post-design re-check: PASS. Four pre-release gaps, allowed by the constitution's pre-release increments rule (1.2.0), are listed under Complexity Tracking.
 
 ## Project Structure
 
@@ -114,5 +114,6 @@ Pre-release gaps allowed by the constitution's pre-release increments rule (1.2.
 | II. Never Pay Twice | `POST /v1/payment-files` has no `(client_id, sha256)` constraint and no concurrency test | T-01 (T-01.3) | T-02: T-02.3 adds the index, T-02.4 proves it with `ConcurrentUploadIT` |
 | VIII. Secure by Default | Requests are not authenticated and files are not scoped by client | T-01 (T-01.3, T-01.6) | T-02: T-02.2 `ApiKeyAuthenticationIT`, T-02.3 `PaymentFileOwnershipIT` |
 | III. All or Nothing per File | A well-formed file is committed as `RECEIVED`, which is not a final status | T-01 (T-01.3) | T-04: T-04.4 `ProcessingRollbackIT` |
+| II. Never Pay Twice | Files become ACCEPTED, but a reused MsgId is not checked yet, so two non-rejected files can share a MsgId | T-04 (T-04.4) | T-07: T-07.1 adds `ux_payment_file_client_msgid_active`, T-07.2 proves it with `ConcurrentDuplicateMessageIdIT` |
 
 Two deliberate costs are recorded as ADRs instead: reading each file twice (XSD pass, then parse; ADR-0004) and holding one transaction per file (ADR-0005).
