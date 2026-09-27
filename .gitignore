@@ -32,5 +32,23 @@ build/
 ### VS Code ###
 .vscode/
 
-# CLAUDE
-/.claude
+### Claude Code ###
+# Spec Kit skills in .claude/skills/ are shared; personal settings and worktrees are not.
+.claude/settings.local.json
+.claude/worktrees/
+
+### Python (tools/, .specify/scripts/) ###
+__pycache__/
+*.py[cod]
+
+### Secrets and local environment ###
+.env
+.env.*
+!.env.example
+
+### OS and editors ###
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+*.log
