@@ -74,9 +74,9 @@ specs/001-payment-file-intake/
 .
 ├── AGENTS.md, CLAUDE.md, README.md, CHANGELOG.md
 ├── pom.xml, Makefile, Dockerfile
+├── docker-compose.yml, .env.example
 ├── .specify/memory/constitution.md
 ├── api/openapi.yaml                     # snapshot of the running API
-├── deploy/docker-compose.yml, deploy/.env.example
 ├── docs/
 │   ├── adr/                             # MADR, 0001 to 0008
 │   ├── architecture/                    # C4 and sequence diagrams (Mermaid)

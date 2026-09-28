@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: sepa-gateway-db
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - db-volume:/var/lib/postgresql
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  db-volume:
+
+
+networks:
+  app-network:
+    driver: bridge
+

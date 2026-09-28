@@ -5,7 +5,7 @@ import org.springframework.boot.SpringApplication;
 public class TestSepagatewayApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.from(SepagatewayApplication::main).with(TestcontainersConfiguration.class).run(args);
+		SpringApplication.from(SepagatewayApplication::main).with(PostgresTestcontainersConfig.class).run(args);
 	}
 
 }
