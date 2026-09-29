@@ -12,8 +12,8 @@ SEPA Batch Gateway receives ISO 20022 pain.001.001.09 payment files, validates e
 | Memory proof (10,000 instructions, 64 MB heap) | `./mvnw -B verify -Pmemory-proof` |
 | Script tests | `python3 -m unittest discover -s tools` |
 | Performance targets (SC-002, SC-003, SC-008 to SC-010) | `tools/measure.sh` (exits non-zero when a target fails) |
-| Run the demo end to end | `make demo` (needs `SEPA_DEMO_API_KEY` and `deploy/.env`) |
-| Start only the database | `docker compose -f deploy/docker-compose.yml up -d postgres` |
+| Run the demo end to end | `make demo` (needs `SEPA_DEMO_API_KEY` and `.env`) |
+| Start only the database | `docker compose -f docker-compose.yml up -d postgres` |
 | Run the app against it | `./mvnw spring-boot:run -Dspring-boot.run.profiles=local` |
 | Clean everything | `make clean` |
 

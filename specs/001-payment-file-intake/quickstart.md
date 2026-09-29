@@ -10,7 +10,7 @@ How to run the gateway locally and check the feature by hand. Each step works on
 ## Run
 
 ```bash
-cp deploy/.env.example deploy/.env                  # local database password, never committed
+cp .env.example .env                                # local database password, never committed
 export SEPA_DEMO_API_KEY="$(openssl rand -hex 32)"  # demo client key, seeded as a hash in the local profile
 make demo                                           # builds, starts app + PostgreSQL, sends the payroll, downloads the pain.002
 ```
