@@ -1,5 +1,5 @@
 /**
  * Ingestion module: payment file upload, idempotency and the processing transaction.
- * Other modules reach it only through its {@code port} package.
+ * Outside this module only its {@code port} and {@code domain} packages are visible.
  */
 package com.quaysidepay.sepagateway.ingestion;
