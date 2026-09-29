@@ -33,7 +33,7 @@ This list matches the constitution. Adding a dependency or technology not listed
 
 - `specs/001-payment-file-intake/`: spec (user stories, RN-xx rules), plan, data model, contracts, tasks with the mode of each subtask
 - `.specify/memory/constitution.md`: non-negotiable principles
-- `src/main/java/com/quaysidepay/sepagateway/`: `ingestion`, `validation` (`validation.domain` is plain Java), `reporting`, `shared`
+- `src/main/java/com/quaysidepay/sepagateway/`: modules `ingestion`, `validation` and `reporting`, each with `domain`, `port`, `application` and `adapter.{web,persistence,xml}`, plus `shared`. Which class goes where: `docs/architecture/04-code-map.md` and the Structure Decision in `specs/001-payment-file-intake/plan.md`
 - `src/main/resources/db/migration/`: Flyway migrations; `src/main/resources/xsd/`: official ISO 20022 XSDs
 - `api/openapi.yaml`: API snapshot, checked by `OpenApiContractTest`
 - `docs/adr/`, `docs/architecture/`, `docs/threat-model.md`, `docs/ai-usage.md`
@@ -42,7 +42,7 @@ This list matches the constitution. Adding a dependency or technology not listed
 ## Rules
 
 - Money is `BigDecimal` in Java and `numeric` in SQL; never `double` or `float`. Compare with `compareTo`. JSON carries money as strings.
-- `validation.domain` imports nothing from Spring or JAXB. `ingestion`, `validation` and `reporting` reach each other only through each module's `port` package (or `shared`). ArchUnit fails the build otherwise.
+- `domain` packages import nothing from Spring, JAXB or `iso20022`. Outside a module only its `port` and `domain` packages are visible. Allowed directions: `ingestion` → `validation`, `reporting` → `validation`, every module → `shared`; `shared` depends on no module; no cycles. Only `adapter.xml` uses the generated `iso20022` classes. ArchUnit fails the build otherwise.
 - The business date comes from an injected `Clock` (zone `Europe/Dublin`); rules never read the system time.
 - Never normalise payment data: an IBAN with lowercase letters is rejected (AC03), not upper-cased.
 - Every error is RFC 9457 `ProblemDetail` with `correlationId`; no stack traces in responses.
@@ -72,6 +72,8 @@ Whoever writes the code of a subtask does not write its test. Acceptance tests (
 ## Spec Kit
 
 Use `/speckit-specify`, `/speckit-clarify`, `/speckit-plan` and `/speckit-analyze` for specs and plans. `/speckit-analyze` is read-only; CRITICAL findings block closing a task.
+
+`.specify/feature.json` is per checkout and gitignored. After cloning, create it with `{"feature_directory":"specs/001-payment-file-intake"}`; without it the `/speckit-*` commands cannot find feature 001 from `main` or from a task branch.
 
 Do not run `/speckit-tasks` on feature 001 (its `tasks.md` follows the project format). Never run `/speckit-implement` on `HAND` subtasks; on `AI+REVIEW` subtasks, run it for one subtask at a time.
 

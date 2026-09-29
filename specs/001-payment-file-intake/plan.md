@@ -45,7 +45,7 @@ A REST service receives pain.001.001.09 files from corporate ERPs, checks them i
 | VII. Every Behavior Change Has an Integration Test | `AbstractPostgresIT` base with Testcontainers; at least one `usXX_acY_*` test per criterion; config subtasks verified by CI | PASS |
 | VIII. Secure by Default | `SecureXmlFactories`, DOCTYPE prolog check, multipart limits, secrets from environment, client scoping with 404. Pre-release gap from T-01 to T-02 (Complexity Tracking) | PASS |
 | IX. Personal Data Stays Out of Logs | JSON logs (ECS format), `IbanMasker`, log-capture test on the payroll scenario | PASS |
-| X. The Domain Has No Framework | `validation.domain` in plain Java; `DomainArchitectureTest.domainHasNoFrameworkOrFloatingPoint` and `.modulesTalkOnlyThroughPorts` (each module reaches another only through its `port` package or `shared`) | PASS |
+| X. The Domain Has No Framework | `validation.domain` in plain Java; `DomainArchitectureTest.domainHasNoFrameworkOrFloatingPoint` and `.modulesTalkOnlyThroughPorts` (outside a module only its `port` and `domain` packages are visible; dependencies point one way, with no cycles; see Structure Decision) | PASS |
 | XI. LLMs Stay Off the Money Path | No LLM dependency; subtask modes and test ownership in `tasks.md` and `AGENTS.md` | PASS |
 | XII. Decisions Are Written Down | Eight ADRs listed in [research.md](./research.md), each written in the task that first depends on it and merged in that task's pull request (ADR-0002 and ADR-0006 in T-01; ADR-0004, ADR-0005 and ADR-0008 in T-03); every dependency and tool is in the constitution's stack list (1.2.0) | PASS |
 
@@ -79,7 +79,7 @@ specs/001-payment-file-intake/
 ├── api/openapi.yaml                     # snapshot of the running API
 ├── docs/
 │   ├── adr/                             # MADR, 0001 to 0008
-│   ├── architecture/                    # C4 and sequence diagrams (Mermaid)
+│   ├── architecture/                    # README, 01 to 06: C4, code map, sequence diagrams (Mermaid)
 │   ├── results/                         # measured numbers
 │   ├── retros/
 │   ├── ai-usage.md
@@ -88,22 +88,44 @@ specs/001-payment-file-intake/
 ├── tools/                               # generate_pain001.py (+ unittest), measure.sh
 └── src/
     ├── main/java/com/quaysidepay/sepagateway/
-    │   ├── ingestion/                   # upload, idempotency, processing transaction
-    │   ├── validation/                  # XSD, StAX reader, adapters
-    │   │   └── domain/                  # SEPA rules, plain Java
-    │   ├── reporting/                   # pain.002 and queries
-    │   └── shared/                      # security, web (filters, problem handler)
+    │   ├── SepagatewayApplication.java
+    │   ├── ingestion/                   # upload, idempotency, processing transaction; writes the payment tables
+    │   │   ├── domain/                  # PaymentFile, PaymentFileStatus
+    │   │   ├── port/                    # ReceivePaymentFileUseCase, GetPaymentFileUseCase, PaymentFileRepository, InstructionWriter
+    │   │   ├── application/             # ReceivePaymentFileService, ProcessPaymentFileService, ProcessingRetry
+    │   │   └── adapter/                 # web (PaymentFileController), persistence (Jdbc*)
+    │   ├── validation/                  # XSD pass, StAX + JAXB reader, SEPA rules; no database, no HTTP
+    │   │   ├── domain/                  # plain Java: GroupHeader, PaymentBlock, CreditTransfer, ReasonCode, Outcome, rules
+    │   │   ├── port/                    # SchemaValidator, Pain001Reader, Pain001Handler
+    │   │   └── adapter/xml/             # SecureXmlFactories, XsdValidator, Pain001HeaderReader, Pain001StreamReader
+    │   ├── reporting/                   # pain.002 and instruction query; read-only SQL of its own
+    │   │   ├── port/                    # GetStatusReportUseCase, ListInstructionsUseCase, InstructionQuery
+    │   │   ├── application/             # StatusReportService, InstructionQueryService
+    │   │   └── adapter/                 # web (controllers), persistence (JdbcInstructionQuery), xml (Pain002Builder)
+    │   └── shared/                      # security (API key, api_client), web (filters, problem handler), io, time
     ├── main/resources/
+    │   ├── application.properties, application-local.properties
     │   ├── db/migration/                # V1 to V7
     │   └── xsd/                         # pain.001.001.09, pain.002.001.10
     └── test/java/com/quaysidepay/sepagateway/
-        ├── ...Test                      # unit
-        ├── ...IT                        # integration (Testcontainers)
-        ├── ...AcceptanceIT              # at least one test per acceptance criterion
-        └── architecture/                # ArchUnit
+        ├── AbstractPostgresIT, PostgresTestcontainersConfig   # Testcontainers support
+        ├── <module>/...Test             # unit, same package as the code
+        ├── <module>/...IT               # integration (Testcontainers, run by Failsafe)
+        ├── acceptance/...AcceptanceIT   # at least one test per acceptance criterion
+        └── architecture/                # ArchUnit (DomainArchitectureTest)
 ```
 
-**Structure Decision**: One Maven module with four packages. `ingestion`, `validation` and `reporting` are the business modules; `shared` holds cross-cutting security and web code. They talk through ports (each module's `port` package), ArchUnit enforces it, and `validation.domain` depends on nothing but the JDK (ADR-0002).
+**Structure Decision**: One Maven module with four top-level packages (ADR-0002). `ingestion`, `validation` and `reporting` are the business modules; `shared` holds what every module uses and none owns. A business module has up to four sub-packages: `domain` (plain Java records and rules), `port` (interfaces: `*UseCase` for calls coming in; `*Repository`, `*Writer`, `*Query` and `*Reader` for calls going out), `application` (services, transactions, retry) and `adapter.web`, `adapter.persistence` or `adapter.xml`.
+
+Rules, enforced by `DomainArchitectureTest` from T-03.4 and by PR review before that:
+
+- Outside a module only its `port` and `domain` packages are visible; `application` and `adapter` stay internal.
+- Allowed directions: `ingestion` → `validation`, `reporting` → `validation`, every module → `shared`. `shared` depends on no module, and there are no cycles between top-level packages.
+- `domain` imports no Spring, no JAXB and no `iso20022`, and has no `double` or `float` field.
+- Only `adapter.xml` uses the JAXB classes generated from the XSDs (`com.quaysidepay.sepagateway.iso20022`, under `target/generated-sources`, not versioned).
+- Only the owning module writes a table: `shared` writes `api_client` and `ingestion` writes the three payment tables; `reporting` reads them with its own read-only SQL.
+
+The class-by-class map, with the subtask that creates each class, is `docs/architecture/04-code-map.md` (written in T-01.7).
 
 ## Complexity Tracking
 
